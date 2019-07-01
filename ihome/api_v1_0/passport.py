@@ -6,7 +6,7 @@ from sqlalchemy.exc import IntegrityError
 from . import api
 from flask import request, jsonify, current_app, session
 from ihome.utils.response_code import RET
-from ihome import redis_store, db
+from ihome import redis_store, db, constants
 from ihome.models import User
 
 
@@ -61,6 +61,77 @@ def register():
 
     session["name"] = mobile
     session["mobile"] = mobile
-    session["user_id"] = mobile
+    session["user_id"] = user.id
 
     return jsonify(errno=RET.OK, errmsg="注册成功")
+
+
+@api.route("/sessions", methods=["POST"])
+def login():
+    """
+    登录
+    :return:
+    """
+    json_data = request.get_json()
+    mobile = json_data.get("mobile")
+    password = json_data.get("password")
+
+    if not all([mobile, password]):
+        return jsonify(errno=RET.PARAMERR, errmsg="参数不完整")
+
+    if not re.match(r'1[34578]', mobile):
+        return jsonify(errno=RET.PARAMERR, errmsg="手机格式不对")
+
+    user_ip = request.remote_addr
+
+    try:
+        access_nums = redis_store.get("access_num_%s" % user_ip)
+    except Exception as e:
+        current_app.logger.error(e)
+    else:
+        if access_nums is not None and int(access_nums) >= constants.LOGIN_ERROR_MAX_TIMES:
+            return jsonify(errno=RET.REQERR, errmsg="请求次数过多,请稍后再试")
+
+    try:
+        user = User.query.filter_by(mobile=mobile).first()
+    except Exception as e:
+        current_app.logger.error(e)
+        return jsonify(errno=RET.DBERR, errmsg="获取用户信息失败")
+
+    if user is None or not user.check_password(password):
+        try:
+            redis_store.incr("access_num_%s" % user_ip)
+            redis_store.expire("access_num_%s" % user_ip, constants.LOGIN_ERROR_FORBID_TIME)
+        except Exception as e:
+            current_app.logger.error(e)
+        return jsonify(errno=RET.PARAMERR, errmsg="用户不存在")
+
+    session["name"] = mobile
+    session["mobile"] = mobile
+    session["user_id"] = user.id
+
+    return jsonify(errno=RET.OK, errmsg="登录成功")
+
+
+@api.route("/session", methods=["GET"])
+def check_login():
+    """
+    检查用户是否登录
+    :return:
+    """
+    name = session.get("name")
+
+    if name is not None:
+        return jsonify(errno=RET.OK, errmsg="true", data={"name": name})
+    else:
+        return jsonify(errno=RET.SESSIONERR, errmsg="false")
+
+
+@api.route("/session", methods=["DELETE"])
+def login_out():
+    """
+    退出
+    :return:
+    """
+    session.clear()
+    return jsonify(errno=RET.OK, errmsg="OK")

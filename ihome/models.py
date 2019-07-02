@@ -1,6 +1,8 @@
 # -*- coding:utf-8 -*-
 
 from datetime import datetime
+
+from ihome import constants
 from . import db
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -62,7 +64,16 @@ class Area(BaseModel, db.Model):
     name = db.Column(db.String(32), nullable=False)  # 区域名字
     houses = db.relationship("House", backref="area")  # 区域的房屋
 
-
+    def to_dict(self):
+        """
+        对象转字典
+        :return:
+        """
+        d = {
+            "id": self.id,
+            "name": self.name
+        }
+        return d
 # 房屋设施表，建立房屋与设施的多对多关系
 house_facility = db.Table(
     "ih_house_facility",
@@ -95,6 +106,23 @@ class House(BaseModel, db.Model):
     facilities = db.relationship("Facility", secondary=house_facility)  # 房屋的设施
     images = db.relationship("HouseImage")  # 房屋的图片
     orders = db.relationship("Order", backref="house")  # 房屋的订单
+
+    def to_basic_dict(self):
+
+        house_dict = {
+            "house_id": self.id,
+            "title": self.title,
+            "price": self.price,
+            "area_name": self.area.name,
+            "img_url": constants.QINIU_URL_DOMAIN + self.index_image_url if self.index_image_url else "",
+            "room_count": self.room_count,
+            "order_count": self.order_count,
+            "address": self.address,
+            "user_avatar": constants.QINIU_URL_DOMAIN + self.user.avatar_url if self.user.avatar_url else "",
+            "ctime": self.create_time.strftime("%Y-%m-%d")
+        }
+
+        return house_dict
 
 
 class Facility(BaseModel, db.Model):

@@ -3,8 +3,7 @@ from qiniu import Auth, put_data, etag, urlsafe_base64_encode
 import qiniu.config
 
 
-access_key = "ptQ11yNniTTgtIgUunARvOrbWHE9BB_sjys1eFIi"
-secret_key = "QWC0mTVRdnxeK3RA33ZBSEy-RGAPskt2HirzZWSG"
+
 
 
 def storage(file_data):
